@@ -50,6 +50,7 @@ typedef void					dns_clientreqtrans_t;
 typedef void					dns_clientupdatetrans_t;
 typedef struct dns_cache			dns_cache_t;
 typedef isc_uint16_t				dns_cert_t;
+typedef isc_uint16_t				dns_cksum_t;
 typedef struct dns_compress			dns_compress_t;
 typedef struct dns_db				dns_db_t;
 typedef struct dns_dbimplementation		dns_dbimplementation_t;

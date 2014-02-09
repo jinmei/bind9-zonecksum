@@ -353,6 +353,24 @@ dns_name_hashbylabel(dns_name_t *name, isc_boolean_t case_sensitive);
  *\li	A hash value
  */
 
+dns_cksum_t
+dns_name_cksum(dns_name_t *name, isc_boolean_t case_sensitive);
+/*%<
+ * Provide a checksum value for 'name'.
+ *
+ * The checksum covers all name data, and unlike dns_name_fullhash(), it's
+ * always the same for the same name.
+ *
+ * Note: if 'case_sensitive' is ISC_FALSE, then names which differ only in
+ * case will have the same checksum value.
+ *
+ * Requires:
+ * \li	'name' is a valid name
+ *
+ * Returns:
+ * \li	A checksum value
+ */
+
 /*
  *** Comparisons
  ***/

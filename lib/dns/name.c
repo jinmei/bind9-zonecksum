@@ -546,6 +546,34 @@ dns_name_hashbylabel(dns_name_t *name, isc_boolean_t case_sensitive) {
 	return (h);
 }
 
+dns_cksum_t
+dns_name_cksum(dns_name_t *name, isc_boolean_t case_sensitive) {
+	unsigned int length;
+	const unsigned char *s;
+	isc_uint32_t sum = 0;
+
+	REQUIRE(VALID_NAME(name));
+
+	s = name->ndata;
+	length = name->length;
+	if (case_sensitive) {
+		while (length-- > 0)
+			sum += *s++;
+	} else {
+		while (length-- > 0) {
+			unsigned char c = maptolower[*s++];
+			sum += c;
+		}
+	}
+
+	/*
+	 * Since a valid domain name shouldn't exceed 255 bytes in length,
+	 * there shouldn't be no overflow, and simply cast should be fine.
+	 */
+	INSIST(sum < 65536);
+	return ((dns_cksum_t)sum);
+}
+
 dns_namereln_t
 dns_name_fullcompare(const dns_name_t *name1, const dns_name_t *name2,
 		     int *orderp, unsigned int *nlabelsp)
