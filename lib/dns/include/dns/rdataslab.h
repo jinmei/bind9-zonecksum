@@ -175,6 +175,28 @@ dns_rdataslab_subtract(unsigned char *mslab, unsigned char *sslab,
  * valid flags are DNS_RDATASLAB_EXACT
  */
 
+isc_result_t
+dns_rdataslab_subtract2(unsigned char *mslab, unsigned char *sslab,
+			unsigned int reservelen, isc_mem_t *mctx,
+			dns_rdataclass_t rdclass, dns_rdatatype_t type,
+			unsigned int flags, unsigned char **tslabp,
+			dns_cksum_t *cksum, dns_cksum_t *case_cksum);
+/*%<
+ * Similar to dns_rdataslab_subtract, but also calculates checksum for
+ * the subtracted RDATA.
+ *
+ * If 'cksum' and 'case_cksum' are non-NULL, they will be set to checksum
+ * values for the set of RDATA subtracted from 'mslab', in case-sensitive and
+ * case-insensitive modes, respectively.  Note: in the case-insensitive mode,
+ * the corresponding checksum may be different from that for RDATA stored in
+ * 'sslab'.
+ *
+ * If these are NULL, this version works as dns_rdataslab_subtract().
+ *
+ * Requires:
+ *\li	'cksum' and 'case_cksum' are both NULL or both non-NULL.
+ */
+
 isc_boolean_t
 dns_rdataslab_equal(unsigned char *slab1, unsigned char *slab2,
 		    unsigned int reservelen);

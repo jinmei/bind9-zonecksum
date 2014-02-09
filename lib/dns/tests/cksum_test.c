@@ -254,7 +254,7 @@ ATF_TC_BODY(rdata_cksum, tc) {
 	dns_rdata_init(&rdata);
 	/*
 	 * checksum: 'N'=0x4e, 'n'=0x6e, 's'=0x73, so
-	 * (case in sensitive): 0x02 + 0x6e + 0x73 = 0xe3
+	 * (case insensitive): 0x02 + 0x6e + 0x73 = 0xe3
 	 * (case sensitive): 0x024e + 0x7300 = 0x754e
 	 */
 	rdata_fromtext(&rdata, "Ns.", dns_rdataclass_in, dns_rdatatype_ns,
@@ -317,7 +317,7 @@ ATF_TC_BODY(rdataslab_cksum, tc) {
 
 ATF_TC(rdataslab_merge);
 ATF_TC_HEAD(rdataslab_merge, tc) {
-	atf_tc_set_md_var(tc, "descr", "rdataslab checksum");
+	atf_tc_set_md_var(tc, "descr", "rdataslab merge checksum");
 }
 ATF_TC_BODY(rdataslab_merge, tc) {
 	isc_buffer_t rdata_buf;
@@ -391,6 +391,52 @@ ATF_TC_BODY(rdataslab_merge, tc) {
 	dns_test_end();
 }
 
+ATF_TC(rdataslab_subtract);
+ATF_TC_HEAD(rdataslab_subtract, tc) {
+	atf_tc_set_md_var(tc, "descr", "rdataslab subtract checksum");
+}
+ATF_TC_BODY(rdataslab_subtract, tc) {
+	isc_buffer_t rdata_buf;
+	char buf[8192];	/* fixed size, should be large enough for this test */
+	const char *rdatas1[] = {"ns.example.", "Ns.", "Nss."};
+	const char *rdatas2[] = {"ns.", "nss."};
+	isc_region_t region1, region2;
+	unsigned char *new_slab;
+	dns_cksum_t cksum, case_cksum;
+
+	UNUSED(tc);
+
+	ATF_REQUIRE_EQ(ISC_R_SUCCESS, dns_test_begin(NULL, ISC_FALSE));
+	isc_buffer_init(&rdata_buf, buf, sizeof(buf));
+
+	rdataslab_fromtext(dns_rdataclass_in, dns_rdatatype_ns, rdatas1, 3,
+			   &rdata_buf, &region1, NULL, NULL);
+	rdataslab_fromtext(dns_rdataclass_in, dns_rdatatype_ns, rdatas2, 2,
+			   &rdata_buf, &region2, NULL, NULL);
+
+	/*
+	 * subtract slab2 from slab1.  The returned checksums are for
+	 * "Ns." and "Nss.":
+	 * (case insensitive): 0x02 + 0x6e + 0x73 + 0x03 + 0x6e + 0x73 + 0x73
+	 * (case sensitive): 0x024e + 0x7300 + 0x034e + 0x7373
+	 * Note that, in the case of case-insensitive, the checksum is for
+	 * RDATA in slab1.
+	 */
+	new_slab = NULL;
+	ATF_REQUIRE_EQ(ISC_R_SUCCESS,
+		       dns_rdataslab_subtract2(region1.base, region2.base, 0,
+					       mctx, dns_rdataclass_in,
+					       dns_rdatatype_ns, 0, &new_slab,
+					       &cksum, &case_cksum));
+	isc_mem_put(mctx, new_slab, dns_rdataslab_size(new_slab, 0));
+	ATF_REQUIRE_EQ(htons(0x23a), cksum);
+	ATF_REQUIRE_EQ(htons(0xec0f), case_cksum);
+
+	isc_mem_put(mctx, region1.base, region1.length);
+	isc_mem_put(mctx, region2.base, region2.length);
+	dns_test_end();
+}
+
 /*
  * Main
  */
@@ -399,6 +445,7 @@ ATF_TP_ADD_TCS(tp) {
 	ATF_TP_ADD_TC(tp, rdata_cksum);
 	ATF_TP_ADD_TC(tp, rdataslab_cksum);
 	ATF_TP_ADD_TC(tp, rdataslab_merge);
+	ATF_TP_ADD_TC(tp, rdataslab_subtract);
 
 	return (atf_no_error());
 }

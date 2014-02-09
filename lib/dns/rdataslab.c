@@ -914,10 +914,23 @@ dns_rdataslab_subtract(unsigned char *mslab, unsigned char *sslab,
 		       dns_rdataclass_t rdclass, dns_rdatatype_t type,
 		       unsigned int flags, unsigned char **tslabp)
 {
+	return (dns_rdataslab_subtract2(mslab, sslab, reservelen, mctx, rdclass,
+					type, flags, tslabp, NULL, NULL));
+}
+
+isc_result_t
+dns_rdataslab_subtract2(unsigned char *mslab, unsigned char *sslab,
+			unsigned int reservelen, isc_mem_t *mctx,
+			dns_rdataclass_t rdclass, dns_rdatatype_t type,
+			unsigned int flags, unsigned char **tslabp,
+			dns_cksum_t *cksum, dns_cksum_t *case_cksum)
+{
 	unsigned char *mcurrent, *sstart, *scurrent, *tstart, *tcurrent;
 	unsigned int mcount, scount, rcount ,count, tlength, tcount, i;
 	dns_rdata_t srdata = DNS_RDATA_INIT;
 	dns_rdata_t mrdata = DNS_RDATA_INIT;
+	isc_uint32_t sum = 0;
+	isc_uint32_t case_sum = 0;
 #if DNS_RDATASET_FIXED
 	unsigned char *offsetbase;
 	unsigned int *offsettable;
@@ -926,6 +939,8 @@ dns_rdataslab_subtract(unsigned char *mslab, unsigned char *sslab,
 
 	REQUIRE(tslabp != NULL && *tslabp == NULL);
 	REQUIRE(mslab != NULL && sslab != NULL);
+	REQUIRE((cksum == NULL && case_cksum == NULL) ||
+		(cksum != NULL && case_cksum != NULL));
 
 	mcurrent = mslab + reservelen;
 	mcount = *mcurrent++ * 256;
@@ -1065,6 +1080,9 @@ dns_rdataslab_subtract(unsigned char *mslab, unsigned char *sslab,
 #endif
 			memmove(tcurrent, mrdatabegin, length);
 			tcurrent += length;
+		} else if (cksum != NULL) {
+			sum += dns_rdata_cksum(&mrdata, ISC_FALSE);
+			case_sum += dns_rdata_cksum(&mrdata, ISC_TRUE);
 		}
 		dns_rdata_reset(&mrdata);
 	}
@@ -1078,6 +1096,16 @@ dns_rdataslab_subtract(unsigned char *mslab, unsigned char *sslab,
 	INSIST(tcurrent == tstart + tlength);
 
 	*tslabp = tstart;
+
+	if (cksum != NULL) {	/* case_cksum should also be non-NULL */
+		sum = (sum >> 16) + (sum & 0xffff);
+		sum += (sum >> 16);
+		case_sum = (case_sum >> 16) + (case_sum & 0xffff);
+		case_sum += (case_sum >> 16);
+
+		*cksum = sum;
+		*case_cksum = case_sum;
+	}
 
 	return (ISC_R_SUCCESS);
 }
