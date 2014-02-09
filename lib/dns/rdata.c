@@ -2173,3 +2173,33 @@ dns_rdata_updateop(dns_rdata_t *rdata, dns_section_t section) {
 	}
 	return ("invalid");
 }
+
+dns_cksum_t
+dns_rdata_cksum(dns_rdata_t *rdata, isc_boolean_t case_sensitive) {
+	isc_uint32_t sum = 0;
+	const isc_uint16_t *word16;
+	unsigned int length;
+
+	UNUSED(case_sensitive);
+
+	REQUIRE(rdata != NULL);
+	REQUIRE(DNS_RDATA_VALIDFLAGS(rdata));
+
+	length = rdata->length;
+	word16 = (const isc_uint16_t *)rdata->data;
+	while (length > 1) {
+		sum += *word16++;
+		length -= 2;
+	}
+	if (length == 1) {
+		isc_uint16_t tmp = 0;
+		*(unsigned char *)&tmp = *(unsigned char*)word16;
+		sum += tmp;
+	}
+
+	/* carry all overflow bits */
+	sum = (sum >> 16) + (sum & 0xffff);
+	sum += (sum >> 16);
+
+	return ((dns_cksum_t)sum);
+}

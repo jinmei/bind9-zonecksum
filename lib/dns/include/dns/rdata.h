@@ -757,6 +757,9 @@ dns_rdata_checknames(dns_rdata_t *rdata, dns_name_t *owner, dns_name_t *bad);
  *	'bad'	to be NULL or valid.
  */
 
+dns_cksum_t
+dns_rdata_cksum(dns_rdata_t *rdata, isc_boolean_t case_sensitive);
+
 void
 dns_rdata_exists(dns_rdata_t *rdata, dns_rdatatype_t type);
 

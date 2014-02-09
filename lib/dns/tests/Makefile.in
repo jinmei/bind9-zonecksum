@@ -37,13 +37,12 @@ DNSDEPLIBS =	../libdns.@A@
 LIBS =		@LIBS@ @ATFLIBS@
 
 OBJS =		dnstest.@O@
-SRCS =		db_test.c \
+SRCS =		cksum_test.c db_test.c \
 		dbdiff_test.c \
 		dbiterator_test.c \
 		dispatch_test.c \
 		dnstest.c \
 		master_test.c \
-		name_test.c \
 		nsec3_test.c \
 		private_test.c \
 		rdata_test.c \
@@ -54,13 +53,12 @@ SRCS =		db_test.c \
 		zt_test.c
 
 SUBDIRS =
-TARGETS =	db_test@EXEEXT@ \
+TARGETS =	cksum_test@EXEEXT@ db_test@EXEEXT@ \
 		dbdiff_test@EXEEXT@ \
 		dbiterator_test@EXEEXT@ \
 		dbversion_test@EXEEXT@ \
 		dispatch_test@EXEEXT@ \
 		master_test@EXEEXT@ \
-		name_test@EXEEXT@ \
 		nsec3_test@EXEEXT@ \
 		private_test@EXEEXT@ \
 		rdata_test@EXEEXT@ \
@@ -85,9 +83,9 @@ master_test@EXEEXT@: master_test.@O@ dnstest.@O@ ${ISCDEPLIBS} ${DNSDEPLIBS}
 			master_test.@O@ dnstest.@O@ ${DNSLIBS} \
 				${ISCLIBS} ${LIBS}
 
-name_test@EXEEXT@: name_test.@O@ dnstest.@O@ ${ISCDEPLIBS} ${DNSDEPLIBS}
+cksum_test@EXEEXT@: cksum_test.@O@ dnstest.@O@ ${ISCDEPLIBS} ${DNSDEPLIBS}
 	${LIBTOOL_MODE_LINK} ${PURIFY} ${CC} ${CFLAGS} ${LDFLAGS} -o $@ \
-			name_test.@O@ dnstest.@O@ ${DNSLIBS} \
+			cksum_test.@O@ dnstest.@O@ ${DNSLIBS} \
 				${ISCLIBS} ${LIBS}
 
 time_test@EXEEXT@: time_test.@O@ dnstest.@O@ ${ISCDEPLIBS} ${DNSDEPLIBS}
