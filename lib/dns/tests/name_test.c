@@ -28,6 +28,7 @@
 
 #include "dnstest.h"
 
+/* A simple helper to generate dns_name_t from C-string.  Not thread-safe. */
 static dns_name_t *
 name_fromtext(const char *name_txt) {
 	static dns_fixedname_t fn;
