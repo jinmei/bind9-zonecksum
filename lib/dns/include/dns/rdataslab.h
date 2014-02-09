@@ -89,6 +89,23 @@ dns_rdataslab_fromrdataset(dns_rdataset_t *rdataset, isc_mem_t *mctx,
  *\li	XXX others
  */
 
+isc_result_t
+dns_rdataslab_fromrdataset2(dns_rdataset_t *rdataset, isc_mem_t *mctx,
+			    isc_region_t *region, unsigned int reservelen,
+			    dns_cksum_t *cksum, dns_cksum_t *case_cksum);
+/*%<
+ * Similar to dns_rdataslab_fromrdataset, but also calculates checksum values.
+ *
+ * If 'cksum' and 'case_cksum' are non-NULL, they will be set to checksum
+ * values for the set of RDATA stored in the slab, in case-sensitive and
+ * case-insensitive modes, respectively.
+ *
+ * If these are NULL, this version works as dns_rdataslab_fromrdataset().
+ *
+ * Requires:
+ *\li	'cksum' and 'case_cksum' are both NULL or both non-NULL.
+ */
+
 void
 dns_rdataslab_tordataset(unsigned char *slab, unsigned int reservelen,
 			 dns_rdataclass_t rdclass, dns_rdatatype_t rdtype,

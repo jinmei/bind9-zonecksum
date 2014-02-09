@@ -126,6 +126,15 @@ isc_result_t
 dns_rdataslab_fromrdataset(dns_rdataset_t *rdataset, isc_mem_t *mctx,
 			   isc_region_t *region, unsigned int reservelen)
 {
+	return (dns_rdataslab_fromrdataset2(rdataset, mctx, region, reservelen,
+					    NULL, NULL));
+}
+
+isc_result_t
+dns_rdataslab_fromrdataset2(dns_rdataset_t *rdataset, isc_mem_t *mctx,
+			    isc_region_t *region, unsigned int reservelen,
+			    dns_cksum_t *cksum, dns_cksum_t *case_cksum)
+{
 	/*
 	 * Use &removed as a sentinal pointer for duplicate
 	 * rdata as rdata.data == NULL is valid.
@@ -145,6 +154,11 @@ dns_rdataslab_fromrdataset(dns_rdataset_t *rdataset, isc_mem_t *mctx,
 	unsigned int   *offsettable;
 #endif
 	unsigned int	length;
+	isc_uint32_t	sum = 0;
+	isc_uint32_t	case_sum = 0;
+
+	REQUIRE((cksum == NULL && case_cksum == NULL) ||
+		(cksum != NULL && case_cksum != NULL));
 
 	buflen = reservelen + 2;
 
@@ -320,12 +334,27 @@ dns_rdataslab_fromrdataset(dns_rdataset_t *rdataset, isc_mem_t *mctx,
 		}
 		memmove(rawbuf, x[i].rdata.data, x[i].rdata.length);
 		rawbuf += x[i].rdata.length;
+
+		if (cksum != NULL) {
+			sum += dns_rdata_cksum(&x[i].rdata, ISC_FALSE);
+			case_sum += dns_rdata_cksum(&x[i].rdata, ISC_TRUE);
+		}
 	}
 
 #if DNS_RDATASET_FIXED
 	fillin_offsets(offsetbase, offsettable, nalloc);
 	isc_mem_put(mctx, offsettable, nalloc * sizeof(unsigned int));
 #endif
+
+	if (cksum != NULL) {	/* case_cksum should also be non-NULL */
+		sum = (sum >> 16) + (sum & 0xffff);
+		sum += (sum >> 16);
+		case_sum = (case_sum >> 16) + (case_sum & 0xffff);
+		case_sum += (case_sum >> 16);
+
+		*cksum = sum;
+		*case_cksum = case_sum;
+	}
 
 	result = ISC_R_SUCCESS;
 
