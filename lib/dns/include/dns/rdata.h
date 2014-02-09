@@ -759,6 +759,18 @@ dns_rdata_checknames(dns_rdata_t *rdata, dns_name_t *owner, dns_name_t *bad);
 
 dns_cksum_t
 dns_rdata_cksum(dns_rdata_t *rdata, isc_boolean_t case_sensitive);
+/*%<
+ * Provide a checksum value for 'rdata'.
+ *
+ * 'case_sensitive' is currently unused.
+ *
+ * Requires:
+ *
+ *\li	'rdata' is a valid, non-empty rdata
+ *
+ * Returns:
+ *\li	The checksum value.
+ */
 
 void
 dns_rdata_exists(dns_rdata_t *rdata, dns_rdatatype_t type);
