@@ -27,6 +27,7 @@
 #include <isc/buffer.h>
 #include <isc/hash.h>
 #include <isc/mem.h>
+#include <isc/net.h>
 #include <isc/once.h>
 #include <isc/print.h>
 #include <isc/string.h>
@@ -571,7 +572,7 @@ dns_name_cksum(dns_name_t *name, isc_boolean_t case_sensitive) {
 	 * there shouldn't be no overflow, and simply cast should be fine.
 	 */
 	INSIST(sum < 65536);
-	return ((dns_cksum_t)sum);
+	return (htons((dns_cksum_t)sum));
 }
 
 dns_namereln_t

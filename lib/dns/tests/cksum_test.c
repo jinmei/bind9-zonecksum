@@ -27,6 +27,7 @@
 
 #include <isc/buffer.h>
 #include <isc/lex.h>
+#include <isc/net.h>
 #include <isc/types.h>
 #include <isc/util.h>
 
@@ -143,18 +144,18 @@ ATF_TC_BODY(name_cksum, tc) {
 	 * 'a' = 97, so the checksum for "aaa." is 3(=# 1st labels) + 97 * 3.
 	 * Similar to "AAA." ('A' = 65)
 	 */
-	ATF_REQUIRE_EQ(3 + 97 * 3,
+	ATF_REQUIRE_EQ(htons(3 + 97 * 3),
 		       dns_name_cksum(name_fromtext("aaa."), ISC_TRUE));
-	ATF_REQUIRE_EQ(3 + 65 * 3,
+	ATF_REQUIRE_EQ(htons(3 + 65 * 3),
 		       dns_name_cksum(name_fromtext("AAA."), ISC_TRUE));
 
 	/*
 	 * If it's case insensitive, both should be equal to the checksum of
 	 * 'aaa.'
 	 */
-	ATF_REQUIRE_EQ(3 + 97 * 3,
+	ATF_REQUIRE_EQ(htons(3 + 97 * 3),
 		       dns_name_cksum(name_fromtext("aaa."), ISC_FALSE));
-	ATF_REQUIRE_EQ(3 + 97 * 3,
+	ATF_REQUIRE_EQ(htons(3 + 97 * 3),
 		       dns_name_cksum(name_fromtext("AAA."), ISC_FALSE));
 
 	/*
@@ -198,7 +199,7 @@ ATF_TC_BODY(name_cksum, tc) {
 		"\\255\\255\\255\\255\\255\\255\\255\\255"
 		"\\255\\255\\255\\255\\255\\255\\255\\255"
 		"\\255\\255\\255\\255\\255."; /* up to 255 bytes */
-	ATF_REQUIRE_EQ(64000,
+	ATF_REQUIRE_EQ(htons(64000),
 		       dns_name_cksum(name_fromtext(long_name), ISC_FALSE));
 }
 
