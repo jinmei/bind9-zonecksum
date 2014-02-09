@@ -59,6 +59,15 @@ struct dns_dbimplementation {
  *** Supported DB Implementations Registry
  ***/
 
+isc_result_t
+dns_db_cksum(dns_db_t *db, dns_dbversion_t *version, dns_cksum_t *cksum,
+	     dns_cksum_t *case_cksum)
+{
+	if (db->methods->cksum != NULL)
+		return ((db->methods->cksum)(db, version, cksum, case_cksum));
+	return (ISC_R_NOTIMPLEMENTED);
+}
+
 /*
  * Built in database implementations are registered here.
  */

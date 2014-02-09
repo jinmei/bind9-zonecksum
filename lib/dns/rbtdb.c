@@ -382,11 +382,13 @@ typedef struct rbtdb_version {
 	/* Locked by database lock. */
 	isc_boolean_t                   writer;
 	isc_boolean_t                   commit_ok;
+	dns_cksum_t			cksum;
 	rbtdb_changedlist_t             changed_list;
 	rdatasetheaderlist_t		resigned_list;
 	ISC_LINK(struct rbtdb_version)  link;
 	dns_db_secure_t			secure;
 	isc_boolean_t			havensec3;
+	dns_cksum_t			case_cksum;
 	/* NSEC3 parameters */
 	dns_hash_t			hash;
 	isc_uint8_t			flags;
@@ -1092,6 +1094,8 @@ allocate_version(isc_mem_t *mctx, rbtdb_serial_t serial,
 	ISC_LIST_INIT(version->changed_list);
 	ISC_LIST_INIT(version->resigned_list);
 	ISC_LINK_INIT(version, link);
+	version->cksum = 0;
+	version->case_cksum = 0;
 
 	return (version);
 }
@@ -7438,6 +7442,29 @@ getrrsetstats(dns_db_t *db) {
 	return (rbtdb->rrsetstats);
 }
 
+static isc_result_t
+cksum(dns_db_t *db, dns_dbversion_t *version, dns_cksum_t *cksum,
+      dns_cksum_t *case_cksum)
+{
+	dns_rbtdb_t *rbtdb = (dns_rbtdb_t *)db;
+	rbtdb_version_t *rbtversion = version;
+
+	REQUIRE(VALID_RBTDB(rbtdb));
+	INSIST(rbtversion == NULL || rbtversion->rbtdb == rbtdb);
+
+	RWLOCK(&rbtdb->tree_lock, isc_rwlocktype_read);
+
+	if (rbtversion == NULL)
+		rbtversion = rbtdb->current_version;
+
+	*cksum = rbtversion->cksum;
+	*case_cksum = rbtversion->case_cksum;
+
+	RWUNLOCK(&rbtdb->tree_lock, isc_rwlocktype_read);
+
+	return (ISC_R_SUCCESS);
+}
+
 static dns_dbmethods_t zone_methods = {
 	attach,
 	detach,
@@ -7483,7 +7510,8 @@ static dns_dbmethods_t zone_methods = {
 	NULL,
 #endif
 	NULL,
-	NULL
+	NULL,
+	cksum
 };
 
 static dns_dbmethods_t cache_methods = {
@@ -7523,6 +7551,7 @@ static dns_dbmethods_t cache_methods = {
 	NULL,
 	isdnssec,
 	getrrsetstats,
+	NULL,
 	NULL,
 	NULL,
 	NULL,

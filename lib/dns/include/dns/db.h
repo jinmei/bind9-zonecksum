@@ -194,6 +194,8 @@ typedef struct dns_dbmethods {
 				   dns_clientinfo_t *clientinfo,
 				   dns_rdataset_t *rdataset,
 				   dns_rdataset_t *sigrdataset);
+	isc_result_t	(*cksum)(dns_db_t *db, dns_dbversion_t *version,
+				 dns_cksum_t *cksum, dns_cksum_t *case_cksum);
 } dns_dbmethods_t;
 
 typedef isc_result_t
@@ -1547,6 +1549,13 @@ dns_db_rpz_enabled(dns_db_t *db, dns_rpz_st_t *st);
 /*%<
  * Mark a database for response policy rewriting
  * or find which RPZ data is available.
+ */
+
+isc_result_t
+dns_db_cksum(dns_db_t *db, dns_dbversion_t *version, dns_cksum_t *cksum,
+	     dns_cksum_t *case_cksum);
+/*%<
+ * TBD
  */
 
 void

@@ -32,6 +32,7 @@
 #include <isc/types.h>
 #include <isc/util.h>
 
+#include <dns/db.h>
 #include <dns/callbacks.h>
 #include <dns/name.h>
 #include <dns/rdata.h>
@@ -437,6 +438,32 @@ ATF_TC_BODY(rdataslab_subtract, tc) {
 	dns_test_end();
 }
 
+ATF_TC(db_cksum);
+ATF_TC_HEAD(db_cksum, tc) {
+	atf_tc_set_md_var(tc, "descr", "zone DB checksum");
+}
+ATF_TC_BODY(db_cksum, tc) {
+	dns_db_t *db = NULL;
+	dns_cksum_t cksum, case_cksum;
+
+	UNUSED(tc);
+
+	ATF_REQUIRE_EQ(ISC_R_SUCCESS, dns_test_begin(NULL, ISC_FALSE));
+
+	/* create the database.  the initial checksum should be 0. */
+	ATF_REQUIRE_EQ(ISC_R_SUCCESS,
+		       dns_db_create(mctx, "rbt", name_fromtext("com."),
+				     dns_dbtype_zone, dns_rdataclass_in, 0,
+				     NULL, &db));
+	ATF_REQUIRE_EQ(ISC_R_SUCCESS,
+		       dns_db_cksum(db, NULL, &cksum, &case_cksum));
+	ATF_REQUIRE_EQ(0, cksum);
+	ATF_REQUIRE_EQ(0, case_cksum);
+
+	dns_db_detach(&db);
+	dns_test_end();
+}
+
 /*
  * Main
  */
@@ -446,6 +473,7 @@ ATF_TP_ADD_TCS(tp) {
 	ATF_TP_ADD_TC(tp, rdataslab_cksum);
 	ATF_TP_ADD_TC(tp, rdataslab_merge);
 	ATF_TP_ADD_TC(tp, rdataslab_subtract);
+	ATF_TP_ADD_TC(tp, db_cksum);
 
 	return (atf_no_error());
 }
