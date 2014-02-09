@@ -758,7 +758,7 @@ dns_rdata_checknames(dns_rdata_t *rdata, dns_name_t *owner, dns_name_t *bad);
  */
 
 dns_cksum_t
-dns_rdata_cksum(dns_rdata_t *rdata, isc_boolean_t case_sensitive);
+dns_rdata_cksum(const dns_rdata_t *rdata, isc_boolean_t case_sensitive);
 /*%<
  * Provide a checksum value for 'rdata'.
  *

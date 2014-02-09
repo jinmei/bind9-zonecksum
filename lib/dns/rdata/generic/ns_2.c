@@ -253,4 +253,20 @@ casecompare_ns(ARGS_COMPARE) {
 	return (compare_ns(rdata1, rdata2));
 }
 
+static dns_cksum_t
+cksum_ns(ARGS_CKSUM) {
+	isc_region_t region;
+	dns_name_t name;
+
+	REQUIRE(rdata->type == 2);
+
+	if (case_sensitive)
+		return (case_cksum(rdata));
+
+	dns_rdata_toregion(rdata, &region);
+	dns_name_init(&name, NULL);
+	dns_name_fromregion(&name, &region);
+	return (dns_name_cksum(&name, case_sensitive));
+}
+
 #endif	/* RDATA_GENERIC_NS_2_C */

@@ -143,6 +143,26 @@ dns_rdataslab_merge(unsigned char *oslab, unsigned char *nslab,
  */
 
 isc_result_t
+dns_rdataslab_merge2(unsigned char *oslab, unsigned char *nslab,
+		     unsigned int reservelen, isc_mem_t *mctx,
+		     dns_rdataclass_t rdclass, dns_rdatatype_t type,
+		     unsigned int flags, unsigned char **tslabp,
+		     dns_cksum_t *cksum, dns_cksum_t *case_cksum);
+/*%<
+ * Similar to dns_rdataslab_merge, but also calculates checksum for added RDATA.
+ *
+ * If 'cksum' and 'case_cksum' are non-NULL, they will be set to checksum
+ * values for the set of RDATA newly merged in the slab (excluded duplicate),
+ * in case-sensitive and case-insensitive modes, respectively.
+ *
+ *
+ * If these are NULL, this version works as dns_rdataslab_merge().
+ *
+ * Requires:
+ *\li	'cksum' and 'case_cksum' are both NULL or both non-NULL.
+ */
+
+isc_result_t
 dns_rdataslab_subtract(unsigned char *mslab, unsigned char *sslab,
 		       unsigned int reservelen, isc_mem_t *mctx,
 		       dns_rdataclass_t rdclass, dns_rdatatype_t type,

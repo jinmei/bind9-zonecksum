@@ -617,6 +617,17 @@ dns_rdataslab_merge(unsigned char *oslab, unsigned char *nslab,
 		    dns_rdataclass_t rdclass, dns_rdatatype_t type,
 		    unsigned int flags, unsigned char **tslabp)
 {
+	return (dns_rdataslab_merge2(oslab, nslab, reservelen, mctx, rdclass,
+				     type, flags, tslabp, NULL, NULL));
+}
+
+isc_result_t
+dns_rdataslab_merge2(unsigned char *oslab, unsigned char *nslab,
+		     unsigned int reservelen, isc_mem_t *mctx,
+		     dns_rdataclass_t rdclass, dns_rdatatype_t type,
+		     unsigned int flags, unsigned char **tslabp,
+		     dns_cksum_t *cksum, dns_cksum_t *case_cksum)
+{
 	unsigned char *ocurrent, *ostart, *ncurrent, *tstart, *tcurrent, *data;
 	unsigned int ocount, ncount, count, olength, tlength, tcount, length;
 	dns_rdata_t ordata = DNS_RDATA_INIT;
@@ -625,6 +636,8 @@ dns_rdataslab_merge(unsigned char *oslab, unsigned char *nslab,
 	unsigned int oadded = 0;
 	unsigned int nadded = 0;
 	unsigned int nncount = 0;
+	isc_uint32_t sum = 0;
+	isc_uint32_t case_sum = 0;
 #if DNS_RDATASET_FIXED
 	unsigned int oncount;
 	unsigned int norder = 0;
@@ -640,6 +653,8 @@ dns_rdataslab_merge(unsigned char *oslab, unsigned char *nslab,
 
 	REQUIRE(tslabp != NULL && *tslabp == NULL);
 	REQUIRE(oslab != NULL && nslab != NULL);
+	REQUIRE((cksum == NULL && case_cksum == NULL) ||
+		(cksum != NULL && case_cksum != NULL));
 
 	ocurrent = oslab + reservelen;
 	ocount = *ocurrent++ * 256;
@@ -849,6 +864,10 @@ dns_rdataslab_merge(unsigned char *oslab, unsigned char *nslab,
 			memmove(tcurrent, data, length);
 			tcurrent += length;
 			nadded++;
+			if (cksum != NULL) {
+				sum += dns_rdata_cksum(&nrdata, ISC_FALSE);
+				case_sum += dns_rdata_cksum(&nrdata, ISC_TRUE);
+			}
 			if (nadded < ncount) {
 				do {
 					dns_rdata_reset(&nrdata);
@@ -875,6 +894,16 @@ dns_rdataslab_merge(unsigned char *oslab, unsigned char *nslab,
 	INSIST(tcurrent == tstart + tlength);
 
 	*tslabp = tstart;
+
+	if (cksum != NULL) {	/* case_cksum should also be non-NULL */
+		sum = (sum >> 16) + (sum & 0xffff);
+		sum += (sum >> 16);
+		case_sum = (case_sum >> 16) + (case_sum & 0xffff);
+		case_sum += (case_sum >> 16);
+
+		*cksum = sum;
+		*case_cksum = case_sum;
+	}
 
 	return (ISC_R_SUCCESS);
 }

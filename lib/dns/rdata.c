@@ -102,6 +102,7 @@
 
 #define ARGS_CHECKNAMES dns_rdata_t *rdata, dns_name_t *owner, dns_name_t *bad
 
+#define ARGS_CKSUM const dns_rdata_t *rdata, isc_boolean_t case_sensitive
 
 /*%
  * Context structure for the totext_ functions.
@@ -220,6 +221,9 @@ uint16_consume_fromregion(isc_region_t *region);
 static isc_result_t
 unknown_totext(dns_rdata_t *rdata, dns_rdata_textctx_t *tctx,
 	       isc_buffer_t *target);
+
+static dns_cksum_t
+case_cksum(const dns_rdata_t *rdata);
 
 /*% INT16 Size */
 #define NS_INT16SZ	2
@@ -2174,16 +2178,11 @@ dns_rdata_updateop(dns_rdata_t *rdata, dns_section_t section) {
 	return ("invalid");
 }
 
-dns_cksum_t
-dns_rdata_cksum(dns_rdata_t *rdata, isc_boolean_t case_sensitive) {
+static dns_cksum_t
+case_cksum(const dns_rdata_t *rdata) {
 	isc_uint32_t sum = 0;
 	const isc_uint16_t *word16;
 	unsigned int length;
-
-	UNUSED(case_sensitive);
-
-	REQUIRE(rdata != NULL);
-	REQUIRE(DNS_RDATA_VALIDFLAGS(rdata));
 
 	length = rdata->length;
 	word16 = (const isc_uint16_t *)rdata->data;
@@ -2202,4 +2201,17 @@ dns_rdata_cksum(dns_rdata_t *rdata, isc_boolean_t case_sensitive) {
 	sum += (sum >> 16);
 
 	return ((dns_cksum_t)sum);
+}
+
+dns_cksum_t
+dns_rdata_cksum(const dns_rdata_t *rdata, isc_boolean_t case_sensitive) {
+	UNUSED(case_sensitive);
+
+	REQUIRE(rdata != NULL);
+	REQUIRE(DNS_RDATA_VALIDFLAGS(rdata));
+
+	if (rdata->type == dns_rdatatype_ns)
+		return (cksum_ns(rdata, case_sensitive));
+
+	return (case_cksum(rdata));
 }
