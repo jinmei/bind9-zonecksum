@@ -452,13 +452,24 @@ ATF_TC_BODY(db_cksum, tc) {
 
 	/* create the database.  the initial checksum should be 0. */
 	ATF_REQUIRE_EQ(ISC_R_SUCCESS,
-		       dns_db_create(mctx, "rbt", name_fromtext("com."),
+		       dns_db_create(mctx, "rbt", name_fromtext("example."),
 				     dns_dbtype_zone, dns_rdataclass_in, 0,
 				     NULL, &db));
 	ATF_REQUIRE_EQ(ISC_R_SUCCESS,
 		       dns_db_cksum(db, NULL, &cksum, &case_cksum));
 	ATF_REQUIRE_EQ(0, cksum);
 	ATF_REQUIRE_EQ(0, case_cksum);
+
+	/*
+	 * load records from a file.  see the data file for the expected
+	 * values.
+	 */
+	ATF_REQUIRE_EQ(ISC_R_SUCCESS,
+		       dns_db_load(db, "testdata/master/cksum.data"));
+	ATF_REQUIRE_EQ(ISC_R_SUCCESS,
+		       dns_db_cksum(db, NULL, &cksum, &case_cksum));
+	ATF_REQUIRE_EQ(htons(0x5001), cksum);
+	ATF_REQUIRE_EQ(htons(0x1ad6), case_cksum);
 
 	dns_db_detach(&db);
 	dns_test_end();

@@ -679,6 +679,82 @@ static unsigned int init_count;
  * DB Routines
  */
 
+/*
+ * The following are helper routines to update DB checksum values for the
+ * given version.  They assume the caller has exclusive access to the version
+ * (at load time or making updates in a newly created version) so there's no
+ * need for lock.
+ */
+
+static void
+set_newcksum(rbtdb_version_t *rbtversion, isc_uint32_t new_sum,
+	     isc_uint32_t new_case_sum)
+{
+	/* Add all overflow bits and reset the checksums */
+	new_sum = (new_sum >> 16) + (new_sum & 0xffff);
+	new_sum += (new_sum >> 16);
+	new_case_sum = (new_case_sum >> 16) + (new_case_sum & 0xffff);
+	new_case_sum += (new_case_sum >> 16);
+
+	rbtversion->cksum = new_sum;
+	rbtversion->case_cksum = new_case_sum;
+}
+
+/* Update the checksums, replacing TTLs with new values to add. */
+static void
+update_cksum(rbtdb_version_t *rbtversion, dns_ttl_t old_ttl, dns_ttl_t new_ttl,
+	     dns_cksum_t cksum, dns_cksum_t case_cksum)
+{
+	isc_uint32_t sum = rbtversion->cksum;
+	isc_uint32_t case_sum = rbtversion->case_cksum;
+	isc_uint32_t net_oldttl = ~htonl(old_ttl); /* will be 'subtracted' */
+	isc_uint32_t net_newttl = htonl(new_ttl);
+
+	sum += (net_oldttl >> 16) + (net_oldttl & 0xffff);
+	case_sum += (net_oldttl >> 16) + (net_oldttl & 0xffff);
+	sum += (net_newttl >> 16) + (net_newttl & 0xffff);
+	case_sum += (net_newttl >> 16) + (net_newttl & 0xffff);
+
+	sum += cksum;
+	case_sum += case_cksum;
+
+	set_newcksum(rbtversion, sum, case_sum);
+}
+
+/* Update the checksums for a new RRset. */
+static void
+add_cksum(rbtdb_version_t *rbtversion, dns_name_t *name,
+	  dns_rdataclass_t rdclass, rdatasetheader_t *header,
+	  dns_cksum_t cksum, dns_cksum_t case_cksum)
+{
+	isc_uint32_t sum = rbtversion->cksum;
+	isc_uint32_t case_sum = rbtversion->case_cksum;
+	isc_uint16_t net_rdclass, net_rdtype;
+	isc_uint32_t net_ttl = htonl(header->rdh_ttl);
+
+	sum = rbtversion->cksum;
+	case_sum = rbtversion->case_cksum;
+
+	sum += dns_name_cksum(name, ISC_FALSE);
+	case_sum += dns_name_cksum(name, ISC_TRUE);
+
+	sum += (net_ttl >> 16) + (net_ttl & 0xffff);
+	case_sum += (net_ttl >> 16) + (net_ttl & 0xffff);
+
+	net_rdclass = htons(rdclass);
+	sum += net_rdclass;
+	case_sum += net_rdclass;
+
+	net_rdtype = htons(RBTDB_RDATATYPE_BASE(header->type));
+	sum += net_rdtype;
+	case_sum += net_rdtype;
+
+	sum += cksum;
+	case_sum += case_cksum;
+
+	set_newcksum(rbtversion, sum, case_sum);
+}
+
 static void
 attach(dns_db_t *source, dns_db_t **targetp) {
 	dns_rbtdb_t *rbtdb = (dns_rbtdb_t *)source;
@@ -5881,7 +5957,7 @@ resign_insert(dns_rbtdb_t *rbtdb, int idx, rdatasetheader_t *newheader) {
 static isc_result_t
 add(dns_rbtdb_t *rbtdb, dns_rbtnode_t *rbtnode, rbtdb_version_t *rbtversion,
     rdatasetheader_t *newheader, unsigned int options, isc_boolean_t loading,
-    dns_rdataset_t *addedrdataset, isc_stdtime_t now)
+    dns_rdataset_t *addedrdataset, isc_stdtime_t now, isc_boolean_t *has_merged)
 {
 	rbtdb_changed_t *changed = NULL;
 	rdatasetheader_t *topheader, *topheader_prev, *header, *sigheader;
@@ -5908,6 +5984,7 @@ add(dns_rbtdb_t *rbtdb, dns_rbtnode_t *rbtnode, rbtdb_version_t *rbtversion,
 		merge = ISC_TRUE;
 	} else
 		merge = ISC_FALSE;
+	*has_merged = ISC_FALSE;
 
 	if ((options & DNS_DBADD_FORCE) != 0)
 		trust = dns_trust_ultimate;
@@ -6073,6 +6150,7 @@ add(dns_rbtdb_t *rbtdb, dns_rbtnode_t *rbtnode, rbtdb_version_t *rbtversion,
 		 */
 		if (merge) {
 			unsigned int flags = 0;
+			dns_cksum_t cksum, case_cksum;
 			INSIST(rbtversion->serial >= header->serial);
 			merged = NULL;
 			result = ISC_R_SUCCESS;
@@ -6085,14 +6163,15 @@ add(dns_rbtdb_t *rbtdb, dns_rbtnode_t *rbtnode, rbtdb_version_t *rbtversion,
 			else if (newheader->rdh_ttl != header->rdh_ttl)
 				flags |= DNS_RDATASLAB_FORCE;
 			if (result == ISC_R_SUCCESS)
-				result = dns_rdataslab_merge(
+				result = dns_rdataslab_merge2(
 					     (unsigned char *)header,
 					     (unsigned char *)newheader,
 					     (unsigned int)(sizeof(*newheader)),
 					     rbtdb->common.mctx,
 					     rbtdb->common.rdclass,
 					     (dns_rdatatype_t)header->type,
-					     flags, &merged);
+					     flags, &merged,
+					     &cksum, &case_cksum);
 			if (result == ISC_R_SUCCESS) {
 				/*
 				 * If 'header' has the same serial number as
@@ -6110,6 +6189,10 @@ add(dns_rbtdb_t *rbtdb, dns_rbtnode_t *rbtnode, rbtdb_version_t *rbtversion,
 				    RESIGN(header) &&
 				    header->resign < newheader->resign)
 					newheader->resign = header->resign;
+				update_cksum(rbtversion, header->rdh_ttl,
+					     newheader->rdh_ttl, cksum,
+					     case_cksum);
+				*has_merged = ISC_TRUE;
 			} else {
 				free_rdataset(rbtdb, rbtdb->common.mctx,
 					      newheader);
@@ -6449,6 +6532,7 @@ addrdataset(dns_db_t *db, dns_dbnode_t *node, dns_dbversion_t *version,
 	isc_boolean_t newnsec;
 	isc_boolean_t tree_locked = ISC_FALSE;
 	isc_boolean_t cache_is_overmem = ISC_FALSE;
+	isc_boolean_t merged;
 
 	REQUIRE(VALID_RBTDB(rbtdb));
 	INSIST(rbtversion == NULL || rbtversion->rbtdb == rbtdb);
@@ -6606,7 +6690,7 @@ addrdataset(dns_db_t *db, dns_dbnode_t *node, dns_dbversion_t *version,
 
 	if (result == ISC_R_SUCCESS)
 		result = add(rbtdb, rbtnode, rbtversion, newheader, options,
-			     ISC_FALSE, addedrdataset, now);
+			     ISC_FALSE, addedrdataset, now, &merged);
 	if (result == ISC_R_SUCCESS && delegating)
 		rbtnode->find_callback = 1;
 
@@ -6820,6 +6904,7 @@ deleterdataset(dns_db_t *db, dns_dbnode_t *node, dns_dbversion_t *version,
 	rbtdb_version_t *rbtversion = version;
 	isc_result_t result;
 	rdatasetheader_t *newheader;
+	isc_boolean_t merged;
 
 	REQUIRE(VALID_RBTDB(rbtdb));
 	INSIST(rbtversion == NULL || rbtversion->rbtdb == rbtdb);
@@ -6852,7 +6937,7 @@ deleterdataset(dns_db_t *db, dns_dbnode_t *node, dns_dbversion_t *version,
 		  isc_rwlocktype_write);
 
 	result = add(rbtdb, rbtnode, rbtversion, newheader, DNS_DBADD_FORCE,
-		     ISC_FALSE, NULL, 0);
+		     ISC_FALSE, NULL, 0, &merged);
 
 	NODE_UNLOCK(&rbtdb->node_locks[rbtnode->locknum].lock,
 		    isc_rwlocktype_write);
@@ -6959,6 +7044,8 @@ loading_addrdataset(void *arg, dns_name_t *name, dns_rdataset_t *rdataset) {
 	isc_result_t result;
 	isc_region_t region;
 	rdatasetheader_t *newheader;
+	isc_boolean_t merged;
+	dns_cksum_t cksum, case_cksum;
 
 	/*
 	 * This routine does no node locking.  See comments in
@@ -7019,9 +7106,10 @@ loading_addrdataset(void *arg, dns_name_t *name, dns_rdataset_t *rdataset) {
 #endif
 	}
 
-	result = dns_rdataslab_fromrdataset(rdataset, rbtdb->common.mctx,
-					    &region,
-					    sizeof(rdatasetheader_t));
+	result = dns_rdataslab_fromrdataset2(rdataset, rbtdb->common.mctx,
+					     &region,
+					     sizeof(rdatasetheader_t),
+					     &cksum, &case_cksum);
 	if (result != ISC_R_SUCCESS)
 		return (result);
 	newheader = (rdatasetheader_t *)region.base;
@@ -7047,7 +7135,11 @@ loading_addrdataset(void *arg, dns_name_t *name, dns_rdataset_t *rdataset) {
 		newheader->resign = 0;
 
 	result = add(rbtdb, node, rbtdb->current_version, newheader,
-		     DNS_DBADD_MERGE, ISC_TRUE, NULL, 0);
+		     DNS_DBADD_MERGE, ISC_TRUE, NULL, 0, &merged);
+	if (result == ISC_R_SUCCESS && !merged) { /* a new RRset was added */
+		add_cksum(rbtdb->current_version, name, rbtdb->common.rdclass,
+			  newheader, cksum, case_cksum);
+	}
 	if (result == ISC_R_SUCCESS &&
 	    delegating_type(rbtdb, node, rdataset->type))
 		node->find_callback = 1;
