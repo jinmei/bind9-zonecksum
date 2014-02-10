@@ -4288,15 +4288,16 @@ zone_postload(dns_zone_t *zone, dns_db_t *db, isc_time_t loadtime,
 	if (! dns_db_ispersistent(db)) {
 		dns_cksum_t cksum, case_cksum;
 		char cksumbuf[sizeof(" (checksum: 0xffff/0xffff)")];
-		isc_result_t cresult = dns_db_cksum(db, NULL, &cksum,
-						    &case_cksum);
-		if (cresult == ISC_R_SUCCESS) {
+		if (dns_db_cksum(db, NULL, &cksum, &case_cksum) ==
+				 ISC_R_SUCCESS)
+		{
 			snprintf(cksumbuf, sizeof(cksumbuf),
 				 " (checksum: 0x%x/0x%x)", cksum, case_cksum);
-		}
+		} else
+			cksumbuf[0] = '\0';
 		dns_zone_log(zone, ISC_LOG_INFO, "loaded serial %u%s%s", serial,
 			     dns_db_issecure(db) ? " (DNSSEC signed)" : "",
-			     (cresult == ISC_R_SUCCESS) ? cksumbuf : "");
+			     cksumbuf);
 	}
 
 	zone->loadtime = loadtime;
@@ -13672,6 +13673,8 @@ zone_xfrdone(dns_zone_t *zone, isc_result_t result) {
 	isc_result_t xfrresult = result;
 	isc_boolean_t free_needed;
 	dns_zone_t *secure = NULL;
+	dns_cksum_t cksum, case_cksum;
+	isc_boolean_t cksum_available = ISC_FALSE;
 
 	REQUIRE(DNS_ZONE_VALID(zone));
 
@@ -13729,6 +13732,9 @@ zone_xfrdone(dns_zone_t *zone, isc_result_t result) {
 		result = zone_get_from_db(zone, zone->db, &nscount,
 					  &soacount, &serial, &refresh,
 					  &retry, &expire, &minimum, NULL);
+		if (dns_db_cksum(zone->db, NULL, &cksum, &case_cksum) ==
+		    ISC_R_SUCCESS)
+			cksum_available = ISC_TRUE;
 		ZONEDB_UNLOCK(&zone->dblock, isc_rwlocktype_read);
 		if (result == ISC_R_SUCCESS) {
 			if (soacount != 1)
@@ -13775,6 +13781,7 @@ zone_xfrdone(dns_zone_t *zone, isc_result_t result) {
 					  &zone->expiretime);
 		}
 		if (result == ISC_R_SUCCESS && xfrresult == ISC_R_SUCCESS) {
+			char cksumbuf[sizeof(" (checksum: 0xffff/0xffff)")];
 			char buf[DNS_NAME_FORMATSIZE + sizeof(": TSIG ''")];
 			if (zone->tsigkey != NULL) {
 				char namebuf[DNS_NAME_FORMATSIZE];
@@ -13784,9 +13791,15 @@ zone_xfrdone(dns_zone_t *zone, isc_result_t result) {
 					 namebuf);
 			} else
 				buf[0] = '\0';
+			if (cksum_available) {
+				snprintf(cksumbuf, sizeof(cksumbuf),
+					 " (checksum: 0x%x/0x%x)",
+					 cksum, case_cksum);
+			} else
+				cksumbuf[0] = '\0';
 			dns_zone_log(zone, ISC_LOG_INFO,
-				     "transferred serial %u%s",
-				     serial, buf);
+				     "transferred serial %u%s%s",
+				     serial, buf, cksumbuf);
 			if (inline_raw(zone))
 				zone_send_secureserial(zone, serial);
 		}
