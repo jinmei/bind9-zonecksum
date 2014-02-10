@@ -479,11 +479,11 @@ ATF_TC_HEAD(db_cksum, tc) {
 ATF_TC_BODY(db_cksum, tc) {
 	dns_db_t *db = NULL;
 	dns_cksum_t cksum, case_cksum;
-	const char *rdatas[] = {"192.0.2.2"};
+	const char *a_rdatas[] = {"192.0.2.2"};
 	const char *ns_rdatas[] = {"ns1."};
-	dns_dbnode_t *node;
+	dns_dbnode_t *node = NULL;
 	dns_rdataset_t *rds;
-	dns_dbversion_t *version;
+	dns_dbversion_t *version = NULL;
 
 	UNUSED(tc);
 
@@ -511,14 +511,12 @@ ATF_TC_BODY(db_cksum, tc) {
 	ATF_REQUIRE_EQ(htons(0x1ad6), case_cksum);
 
 	/* Add a new RR(set).  Checksums should be updated accordingly. */
-	version = NULL;
 	ATF_REQUIRE_EQ(ISC_R_SUCCESS, dns_db_newversion(db, &version));
-	node = NULL;
 	ATF_REQUIRE_EQ(ISC_R_SUCCESS,
 		       dns_db_findnode(db, name_fromtext("b.example."),
 				       ISC_TRUE, &node));
 	rds = rdataset_fromtext(dns_rdataclass_in, dns_rdatatype_a, 3600,
-				rdatas, 1);
+				a_rdatas, 1);
 	ATF_REQUIRE_EQ(ISC_R_SUCCESS,
 		       dns_db_addrdataset(db, node, version, 0, rds, 0, NULL));
 	dns_db_detachnode(db, &node);
@@ -529,7 +527,7 @@ ATF_TC_BODY(db_cksum, tc) {
 	ATF_REQUIRE_EQ(htons(0xee40), case_cksum);
 
 	ATF_REQUIRE_EQ(ISC_R_SUCCESS, dns_db_newversion(db, &version));
-	node = NULL;
+	/* Remove an apex NS, leaving the other NS record. */
 	ATF_REQUIRE_EQ(ISC_R_SUCCESS, dns_db_getoriginnode(db, &node));
 	rds = rdataset_fromtext(dns_rdataclass_in, dns_rdatatype_ns, 3600,
 				ns_rdatas, 1);
@@ -537,6 +535,19 @@ ATF_TC_BODY(db_cksum, tc) {
 		       dns_db_subtractrdataset(db, node, version, rds, 0,
 					       NULL));
 	dns_db_detachnode(db, &node);
+
+	/* remove the previously added A RR.  The entire RRset will be gone. */
+	ATF_REQUIRE_EQ(ISC_R_SUCCESS,
+		       dns_db_findnode(db, name_fromtext("b.example."),
+				       ISC_TRUE, &node));
+	rds = rdataset_fromtext(dns_rdataclass_in, dns_rdatatype_a, 3600,
+				a_rdatas, 1);
+	ATF_REQUIRE_EQ(DNS_R_NXRRSET,
+		       dns_db_subtractrdataset(db, node, version, rds, 0,
+					       NULL));
+	dns_db_detachnode(db, &node);
+
+	/* Commit the change, and confirm the checksums. */
 	dns_db_closeversion(db, &version, ISC_TRUE);
 	ATF_REQUIRE_EQ(ISC_R_SUCCESS,
 		       dns_db_cksum(db, NULL, &cksum, &case_cksum));
