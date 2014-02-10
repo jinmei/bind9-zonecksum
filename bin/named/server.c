@@ -7588,11 +7588,87 @@ ns_server_flushnode(ns_server_t *server, char *args, isc_boolean_t tree) {
 	return (result);
 }
 
+static isc_result_t
+zone_status(dns_zone_t **zonep, isc_buffer_t *text) {
+	isc_result_t result = ISC_R_SUCCESS;
+	dns_zone_t *zone = *zonep;
+	dns_db_t *db = NULL;
+	dns_dbversion_t *version = NULL;
+	dns_dbnode_t *node = NULL;
+	dns_rdataset_t rdataset;
+	dns_rdata_soa_t soa;
+	dns_rdata_t rdata = DNS_RDATA_INIT;
+	dns_cksum_t cksum, case_cksum;
+	unsigned int n;
+
+	dns_rdataset_init(&rdataset);
+
+	/* open zone's DB */
+	result = dns_zone_getdb(zone, &db);
+	if (result != ISC_R_SUCCESS)
+		goto cleanup;
+	dns_db_currentversion(db, &version);
+
+	/* find zone's SOA and extract its serial */
+	result = dns_db_getoriginnode(db, &node);
+	if (result != ISC_R_SUCCESS)
+		goto cleanup;
+	result = dns_db_findrdataset(db, node, version, dns_rdatatype_soa, 0,
+				     0, &rdataset, NULL);
+	if (result != ISC_R_SUCCESS)
+		goto cleanup;
+	result = dns_rdataset_first(&rdataset);
+	RUNTIME_CHECK(result == ISC_R_SUCCESS);
+	dns_rdataset_current(&rdataset, &rdata);
+	result = dns_rdata_tostruct(&rdata, &soa, NULL);
+	if (result != ISC_R_SUCCESS)
+		goto cleanup;
+	n = snprintf((char *)isc_buffer_used(text),
+		     isc_buffer_availablelength(text),
+		     "serial: %u", soa.serial);
+	if (n < isc_buffer_availablelength(text)) {
+		isc_buffer_add(text, n);
+		if (dns_db_cksum(db, version, &cksum, &case_cksum) ==
+		    ISC_R_SUCCESS) {
+			n = snprintf((char *)isc_buffer_used(text),
+				     isc_buffer_availablelength(text),
+				     ", checksum: 0x%x/0x%x",
+				     cksum, case_cksum);
+		}
+	}
+	if (n >= isc_buffer_availablelength(text)) {
+		result = ISC_R_NOSPACE;
+		goto cleanup;
+	}
+	isc_buffer_add(text, n);
+
+  cleanup:
+	if (dns_rdataset_isassociated(&rdataset))
+		dns_rdataset_disassociate(&rdataset);
+	if (node != NULL)
+		dns_db_detachnode(db, &node);
+	if (version != NULL)
+		dns_db_closeversion(db, &version, ISC_FALSE);
+	dns_db_detach(&db);
+	dns_zone_detach(zonep);
+
+	return (result);
+}
+
 isc_result_t
-ns_server_status(ns_server_t *server, isc_buffer_t *text) {
+ns_server_status(ns_server_t *server, char *args, isc_buffer_t *text) {
 	int zonecount, xferrunning, xferdeferred, soaqueries;
 	unsigned int n;
 	const char *ob = "", *cb = "", *alt = "";
+	dns_zone_t *zone = NULL;
+	isc_result_t result;
+
+	result = zone_from_args(server, args, NULL, &zone, NULL,
+				text, ISC_TRUE);
+	if (result != ISC_R_SUCCESS)
+		return (result);
+	if (zone != NULL)
+		return (zone_status(&zone, text));
 
 	if (ns_g_server->version_set) {
 		ob = " (";

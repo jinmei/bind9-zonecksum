@@ -174,7 +174,7 @@ ns_control_docommand(isccc_sexpr_t *message, isc_buffer_t *text) {
 	} else if (command_compare(command, NS_COMMAND_FLUSHTREE)) {
 		result = ns_server_flushnode(ns_g_server, command, ISC_TRUE);
 	} else if (command_compare(command, NS_COMMAND_STATUS)) {
-		result = ns_server_status(ns_g_server, text);
+		result = ns_server_status(ns_g_server, command, text);
 	} else if (command_compare(command, NS_COMMAND_TSIGLIST)) {
 		result = ns_server_tsiglist(ns_g_server, text);
 	} else if (command_compare(command, NS_COMMAND_TSIGDELETE)) {

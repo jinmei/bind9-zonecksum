@@ -149,6 +149,8 @@ command is one of the following:\n\
   flushtree name [view]\n\
 		Flush all names under the given name from the server's cache(s)\n\
   status	Display status of the server.\n\
+  status zone [class [view]]\n\
+		Display status of a single zone.\n\
   recursing	Dump the queries that are currently recursing (named.recursing)\n\
   tsig-list	List all currently active TSIG keys, including both statically\n\
 		configured and TKEY-negotiated keys.\n\

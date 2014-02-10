@@ -286,7 +286,7 @@ ns_server_flushnode(ns_server_t *server, char *args, isc_boolean_t tree);
  * Report the server's status.
  */
 isc_result_t
-ns_server_status(ns_server_t *server, isc_buffer_t *text);
+ns_server_status(ns_server_t *server, char *args, isc_buffer_t *text);
 
 /*%
  * Report a list of dynamic and static tsig keys, per view.
