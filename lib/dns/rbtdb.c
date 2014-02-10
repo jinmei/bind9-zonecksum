@@ -740,6 +740,7 @@ update_cksum(rbtdb_version_t *rbtversion, dns_name_t *name,
 	isc_uint32_t net_ttl = htonl(header->rdh_ttl);
 	dns_cksum_t cksum, case_cksum;
 
+	/* First, calculate the intermediate sums for the entire RRset. */
 	sum += dns_name_cksum(name, ISC_FALSE);
 	case_sum += dns_name_cksum(name, ISC_TRUE);
 
@@ -760,6 +761,20 @@ update_cksum(rbtdb_version_t *rbtversion, dns_name_t *name,
 	sum += cksum;
 	case_sum += case_cksum;
 
+	/*
+	 * In case we are deleting the RRset, convert the 32-bit sum for the
+	 * deleted RRset to the corresponding 16-bit negative sum.
+	 */
+	if (!add) {
+		sum = (sum >> 16) + (sum + 0xffff);
+		sum += sum >> 16;
+		sum = ~sum & 0xffff;
+		case_sum = (case_sum >> 16) + (case_sum + 0xffff);
+		case_sum += case_sum >> 16;
+		case_sum = ~case_sum & 0xffff;
+	}
+
+	/* Reset the final value. */
 	sum += rbtversion->cksum;
 	case_sum += rbtversion->case_cksum;
 	set_newcksum(rbtversion, sum, case_sum);
@@ -6880,19 +6895,13 @@ subtractrdataset(dns_db_t *db, dns_dbnode_t *node, dns_dbversion_t *version,
 			newheader->resign = 0;
 			newheader->last_used = 0;
 
-			dns_rdataslab_cksum((unsigned char *)header,
-				    sizeof(*header),
-				    rbtdb->common.rdclass, rdataset->type,
-				    &cksum, &case_cksum);
 			dns_fixedname_init(&fn);
 			name = dns_fixedname_name(&fn);
 			RWLOCK(&rbtdb->tree_lock, isc_rwlocktype_read);
 			dns_rbt_fullnamefromnode(node, name);
 			RWUNLOCK(&rbtdb->tree_lock, isc_rwlocktype_read);
-#if 0
 			update_cksum(rbtversion, name, rbtdb->common.rdclass,
-				     ISC_FALSE);
-#endif
+				     header, ISC_FALSE);
 		} else {
 			free_rdataset(rbtdb, rbtdb->common.mctx, newheader);
 			goto unlock;

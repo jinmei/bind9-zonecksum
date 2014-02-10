@@ -551,8 +551,8 @@ ATF_TC_BODY(db_cksum, tc) {
 	dns_db_closeversion(db, &version, ISC_TRUE);
 	ATF_REQUIRE_EQ(ISC_R_SUCCESS,
 		       dns_db_cksum(db, NULL, &cksum, &case_cksum));
-	ATF_REQUIRE_EQ(htons(0x2257), cksum);
-	ATF_REQUIRE_EQ(htons(0x97c1), case_cksum);
+	ATF_REQUIRE_EQ(htons(0x4eec), cksum);
+	ATF_REQUIRE_EQ(htons(0xc456), case_cksum);
 
 	dns_db_detach(&db);
 	dns_test_end();
