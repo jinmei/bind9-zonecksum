@@ -122,13 +122,13 @@ rdataslab_fromtext(dns_rdataclass_t rdclass, dns_rdatatype_t rdtype,
 
 static dns_rdataset_t *
 rdataset_fromtext(dns_rdataclass_t rdclass, dns_rdatatype_t rdtype,
-		  const char *rdata_texts[], unsigned int nrdata)
+		  dns_ttl_t ttl, const char *rdata_texts[], unsigned int nrdata)
 {
 	static dns_rdataset_t rdataset;
 	static dns_rdatalist_t rdatalist;
 	static char buf[8192]; /* fixed, but should enough for the tests */
-	isc_buffer_t rdata_buf;
-	dns_rdata_t rdata[16];	/* fixed size of placeholder for simplicity */
+	static isc_buffer_t rdata_buf;
+	static dns_rdata_t rdata[16];	/* fixed size for simplicity */
 	unsigned int i;
 
 	REQUIRE(nrdata < 16);
@@ -138,6 +138,7 @@ rdataset_fromtext(dns_rdataclass_t rdclass, dns_rdatatype_t rdtype,
 	dns_rdatalist_init(&rdatalist);
 	rdatalist.type = rdtype;
 	rdatalist.rdclass = rdclass;
+	rdatalist.ttl = ttl;
 
 	for (i = 0; i < nrdata; i++) {
 		dns_rdata_init(&rdata[i]);
@@ -514,15 +515,16 @@ ATF_TC_BODY(db_cksum, tc) {
 	ATF_REQUIRE_EQ(ISC_R_SUCCESS,
 		       dns_db_findnode(db, name_fromtext("b.example."),
 				       ISC_TRUE, &node));
-	rds = rdataset_fromtext(dns_rdataclass_in, dns_rdatatype_a, rdatas, 1);
+	rds = rdataset_fromtext(dns_rdataclass_in, dns_rdatatype_a, 3600,
+				rdatas, 1);
 	ATF_REQUIRE_EQ(ISC_R_SUCCESS,
 		       dns_db_addrdataset(db, node, version, 0, rds, 0, NULL));
 	dns_db_detachnode(db, &node);
 	dns_db_closeversion(db, &version, ISC_TRUE);
 	ATF_REQUIRE_EQ(ISC_R_SUCCESS,
 		       dns_db_cksum(db, NULL, &cksum, &case_cksum));
-	ATF_REQUIRE_EQ(htons(0x5001), cksum);
-	ATF_REQUIRE_EQ(htons(0x1ad6), case_cksum);
+	ATF_REQUIRE_EQ(htons(0x236c), cksum);
+	ATF_REQUIRE_EQ(htons(0xee40), case_cksum);
 
 	dns_db_detach(&db);
 	dns_test_end();

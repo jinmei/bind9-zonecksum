@@ -6693,6 +6693,24 @@ addrdataset(dns_db_t *db, dns_dbnode_t *node, dns_dbversion_t *version,
 	if (result == ISC_R_SUCCESS)
 		result = add(rbtdb, rbtnode, rbtversion, newheader, options,
 			     ISC_FALSE, addedrdataset, now, &merged);
+	if (result == ISC_R_SUCCESS && !merged) {
+		/* A new RRset was added.  Update the checksums for the set. */
+		dns_cksum_t cksum, case_cksum;
+		dns_fixedname_t fn;
+		dns_name_t *name;
+
+		dns_fixedname_init(&fn);
+		name = dns_fixedname_name(&fn);
+		dns_rdataslab_cksum((unsigned char *)newheader,
+				    sizeof(*newheader),
+				    rbtdb->common.rdclass, rdataset->type,
+				    &cksum, &case_cksum);
+		RWLOCK(&rbtdb->tree_lock, isc_rwlocktype_read);
+		dns_rbt_fullnamefromnode(node, name);
+		RWUNLOCK(&rbtdb->tree_lock, isc_rwlocktype_read);
+		add_cksum(rbtversion, name, rbtdb->common.rdclass, newheader,
+			  cksum, case_cksum);
+	}
 	if (result == ISC_R_SUCCESS && delegating)
 		rbtnode->find_callback = 1;
 
