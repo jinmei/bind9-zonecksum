@@ -774,7 +774,7 @@ update_cksum(rbtdb_version_t *rbtversion, dns_name_t *name,
 		case_sum = ~case_sum & 0xffff;
 	}
 
-	/* Reset the final value. */
+	/* Reset the final values. */
 	sum += rbtversion->cksum;
 	case_sum += rbtversion->case_cksum;
 	set_newcksum(rbtversion, sum, case_sum);
