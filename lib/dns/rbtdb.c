@@ -1194,6 +1194,8 @@ newversion(dns_db_t *db, dns_dbversion_t **versionp) {
 		version->commit_ok = ISC_TRUE;
 		version->secure = rbtdb->current_version->secure;
 		version->havensec3 = rbtdb->current_version->havensec3;
+		version->cksum = rbtdb->current_version->cksum;
+		version->case_cksum = rbtdb->current_version->case_cksum;
 		if (version->havensec3) {
 			version->flags = rbtdb->current_version->flags;
 			version->iterations =
@@ -7045,7 +7047,6 @@ loading_addrdataset(void *arg, dns_name_t *name, dns_rdataset_t *rdataset) {
 	isc_region_t region;
 	rdatasetheader_t *newheader;
 	isc_boolean_t merged;
-	dns_cksum_t cksum, case_cksum;
 
 	/*
 	 * This routine does no node locking.  See comments in
@@ -7106,10 +7107,9 @@ loading_addrdataset(void *arg, dns_name_t *name, dns_rdataset_t *rdataset) {
 #endif
 	}
 
-	result = dns_rdataslab_fromrdataset2(rdataset, rbtdb->common.mctx,
-					     &region,
-					     sizeof(rdatasetheader_t),
-					     &cksum, &case_cksum);
+	result = dns_rdataslab_fromrdataset(rdataset, rbtdb->common.mctx,
+					    &region,
+					    sizeof(rdatasetheader_t));
 	if (result != ISC_R_SUCCESS)
 		return (result);
 	newheader = (rdatasetheader_t *)region.base;
@@ -7137,6 +7137,10 @@ loading_addrdataset(void *arg, dns_name_t *name, dns_rdataset_t *rdataset) {
 	result = add(rbtdb, node, rbtdb->current_version, newheader,
 		     DNS_DBADD_MERGE, ISC_TRUE, NULL, 0, &merged);
 	if (result == ISC_R_SUCCESS && !merged) { /* a new RRset was added */
+		dns_cksum_t cksum, case_cksum;
+		dns_rdataslab_cksum((unsigned char *)newheader,
+				    sizeof(*newheader), rbtdb->common.rdclass,
+				    rdataset->type, &cksum, &case_cksum);
 		add_cksum(rbtdb->current_version, name, rbtdb->common.rdclass,
 			  newheader, cksum, case_cksum);
 	}

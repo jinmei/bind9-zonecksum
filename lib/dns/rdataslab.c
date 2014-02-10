@@ -1194,3 +1194,34 @@ dns_rdataslab_equalx(unsigned char *slab1, unsigned char *slab2,
 	}
 	return (ISC_TRUE);
 }
+
+void
+dns_rdataslab_cksum(unsigned char *slab, unsigned int reservelen,
+		    dns_rdataclass_t rdclass, dns_rdatatype_t type,
+		    dns_cksum_t *cksum, dns_cksum_t *case_cksum)
+{
+	unsigned char *current;
+	unsigned int count;
+	dns_rdata_t rdata = DNS_RDATA_INIT;
+	isc_uint32_t sum = 0;
+	isc_uint32_t case_sum = 0;
+
+	current = slab + reservelen;
+	count = *current++ * 256;
+	count += *current++;
+
+	while (count-- > 0) {
+		rdata_from_slab(&current, rdclass, type, &rdata);
+		sum += dns_rdata_cksum(&rdata, ISC_FALSE);
+		case_sum += dns_rdata_cksum(&rdata, ISC_TRUE);
+		dns_rdata_reset(&rdata);
+	}
+
+	sum = (sum >> 16) + (sum & 0xffff);
+	sum += (sum >> 16);
+	case_sum = (case_sum >> 16) + (case_sum & 0xffff);
+	case_sum += (case_sum >> 16);
+
+	*cksum = sum;
+	*case_cksum = case_sum;
+}

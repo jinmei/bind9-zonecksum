@@ -120,6 +120,39 @@ rdataslab_fromtext(dns_rdataclass_t rdclass, dns_rdatatype_t rdtype,
 						   cksump, case_cksump));
 }
 
+static dns_rdataset_t *
+rdataset_fromtext(dns_rdataclass_t rdclass, dns_rdatatype_t rdtype,
+		  const char *rdata_texts[], unsigned int nrdata)
+{
+	static dns_rdataset_t rdataset;
+	static dns_rdatalist_t rdatalist;
+	static char buf[8192]; /* fixed, but should enough for the tests */
+	isc_buffer_t rdata_buf;
+	dns_rdata_t rdata[16];	/* fixed size of placeholder for simplicity */
+	unsigned int i;
+
+	REQUIRE(nrdata < 16);
+
+	isc_buffer_init(&rdata_buf, buf, sizeof(buf));
+
+	dns_rdatalist_init(&rdatalist);
+	rdatalist.type = rdtype;
+	rdatalist.rdclass = rdclass;
+
+	for (i = 0; i < nrdata; i++) {
+		dns_rdata_init(&rdata[i]);
+		rdata_fromtext(&rdata[i], rdata_texts[i], rdclass, rdtype,
+			       &rdata_buf);
+		ISC_LIST_APPEND(rdatalist.rdata, &rdata[i], link);
+	}
+
+	dns_rdataset_init(&rdataset);
+	ATF_REQUIRE_EQ(ISC_R_SUCCESS,
+		       dns_rdatalist_tordataset(&rdatalist, &rdataset));
+
+	return (&rdataset);
+}
+
 /*
  * Test cases
  */
@@ -445,6 +478,10 @@ ATF_TC_HEAD(db_cksum, tc) {
 ATF_TC_BODY(db_cksum, tc) {
 	dns_db_t *db = NULL;
 	dns_cksum_t cksum, case_cksum;
+	const char *rdatas[] = {"192.0.2.2"};
+	dns_dbnode_t *node;
+	dns_rdataset_t *rds;
+	dns_dbversion_t *version;
 
 	UNUSED(tc);
 
@@ -466,6 +503,22 @@ ATF_TC_BODY(db_cksum, tc) {
 	 */
 	ATF_REQUIRE_EQ(ISC_R_SUCCESS,
 		       dns_db_load(db, "testdata/master/cksum.data"));
+	ATF_REQUIRE_EQ(ISC_R_SUCCESS,
+		       dns_db_cksum(db, NULL, &cksum, &case_cksum));
+	ATF_REQUIRE_EQ(htons(0x5001), cksum);
+	ATF_REQUIRE_EQ(htons(0x1ad6), case_cksum);
+
+	version = NULL;
+	ATF_REQUIRE_EQ(ISC_R_SUCCESS, dns_db_newversion(db, &version));
+	node = NULL;
+	ATF_REQUIRE_EQ(ISC_R_SUCCESS,
+		       dns_db_findnode(db, name_fromtext("b.example."),
+				       ISC_TRUE, &node));
+	rds = rdataset_fromtext(dns_rdataclass_in, dns_rdatatype_a, rdatas, 1);
+	ATF_REQUIRE_EQ(ISC_R_SUCCESS,
+		       dns_db_addrdataset(db, node, version, 0, rds, 0, NULL));
+	dns_db_detachnode(db, &node);
+	dns_db_closeversion(db, &version, ISC_TRUE);
 	ATF_REQUIRE_EQ(ISC_R_SUCCESS,
 		       dns_db_cksum(db, NULL, &cksum, &case_cksum));
 	ATF_REQUIRE_EQ(htons(0x5001), cksum);

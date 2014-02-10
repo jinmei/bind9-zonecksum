@@ -224,6 +224,21 @@ dns_rdataslab_equalx(unsigned char *slab1, unsigned char *slab2,
  *\li	ISC_TRUE if the slabs are equal, #ISC_FALSE otherwise.
  */
 
+void
+dns_rdataslab_cksum(unsigned char *slab, unsigned int reservelen,
+		    dns_rdataclass_t rdclass, dns_rdatatype_t type,
+		    dns_cksum_t *cksum, dns_cksum_t *case_cksum);
+/*%<
+ * Calculates checksum values for a rdataslab.
+ *
+ * These checksums are sums of all RDATA stored in the rdataslab.
+ *
+ * Requires:
+ *\li	'rdataset' is valid.
+ *\li	'cksum' and 'case_cksum' are both non-NULL.
+ */
+
+
 ISC_LANG_ENDDECLS
 
 #endif /* DNS_RDATASLAB_H */
