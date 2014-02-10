@@ -61,3 +61,14 @@ the running named, it shows the zone's SOA serial and checksums.
 
 % ./rndc/rndc -c rndc.conf status jinmei.org
 serial: 2014011401, checksum: 0xdcad/0xb9d0
+
+3. named-checkzone
+
+named-checkzone uses the same log message mentioned above, so it can
+also be used to see the checksums.  While this is an expensive
+operation, it might be useful to calculate the checksums of a zone
+served by other implementations than BIND 9.  You'd first "import" the
+data via AXFR and then run named-checkzone to calculate the checksum.
+
+% ./named-checkzone -i none -k ignore jinmei.org ~/tmp/jinmei3.zone
+zone jinmei.org/IN: loaded serial 2014011401 (DNSSEC signed) (checksum: 0xdcad/0xb9d0)
