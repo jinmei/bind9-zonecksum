@@ -4285,9 +4285,19 @@ zone_postload(dns_zone_t *zone, dns_db_t *db, isc_time_t loadtime,
 		zone_settimer(zone, &now);
 	}
 
-	if (! dns_db_ispersistent(db))
-		dns_zone_log(zone, ISC_LOG_INFO, "loaded serial %u%s", serial,
-			     dns_db_issecure(db) ? " (DNSSEC signed)" : "");
+	if (! dns_db_ispersistent(db)) {
+		dns_cksum_t cksum, case_cksum;
+		char cksumbuf[sizeof(" (checksum: 0xffff/0xffff)")];
+		isc_result_t cresult = dns_db_cksum(db, NULL, &cksum,
+						    &case_cksum);
+		if (cresult == ISC_R_SUCCESS) {
+			snprintf(cksumbuf, sizeof(cksumbuf),
+				 " (checksum: 0x%x/0x%x)", cksum, case_cksum);
+		}
+		dns_zone_log(zone, ISC_LOG_INFO, "loaded serial %u%s%s", serial,
+			     dns_db_issecure(db) ? " (DNSSEC signed)" : "",
+			     (cresult == ISC_R_SUCCESS) ? cksumbuf : "");
+	}
 
 	zone->loadtime = loadtime;
 	DNS_ZONE_CLRFLAG(zone, DNS_ZONEFLG_LOADPENDING);
