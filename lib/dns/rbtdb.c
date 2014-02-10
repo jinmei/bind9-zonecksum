@@ -728,6 +728,11 @@ adjust_cksum(rbtdb_version_t *rbtversion, dns_ttl_t old_ttl, dns_ttl_t new_ttl,
 	set_newcksum(rbtversion, sum, case_sum);
 }
 
+static inline isc_uint32_t
+cksum_diff(isc_boolean_t add, isc_uint32_t base) {
+	return (add ? base : (~base & 0xffff));
+}
+
 /* Update the checksums for an entire RRset. */
 static void
 update_cksum(rbtdb_version_t *rbtversion, dns_name_t *name,
@@ -740,39 +745,30 @@ update_cksum(rbtdb_version_t *rbtversion, dns_name_t *name,
 	isc_uint32_t net_ttl = htonl(header->rdh_ttl);
 	dns_cksum_t cksum, case_cksum;
 
-	/* First, calculate the intermediate sums for the entire RRset. */
-	sum += dns_name_cksum(name, ISC_FALSE);
-	case_sum += dns_name_cksum(name, ISC_TRUE);
+	/*
+	 * First, calculate the intermediate sums for the entire RRset.
+	 * In case we are deleting the RRset, convert the 32-bit partial sum
+	 * for the deleted RRset to the corresponding 16-bit 'negative' value.
+	 */
+	sum += cksum_diff(add, dns_name_cksum(name, ISC_FALSE));
+	case_sum += cksum_diff(add, dns_name_cksum(name, ISC_TRUE));
 
-	sum += (net_ttl >> 16) + (net_ttl & 0xffff);
-	case_sum += (net_ttl >> 16) + (net_ttl & 0xffff);
+	sum += cksum_diff(add, (net_ttl >> 16) + (net_ttl & 0xffff));
+	case_sum += cksum_diff(add, (net_ttl >> 16) + (net_ttl & 0xffff));
 
 	net_rdclass = htons(rdclass);
-	sum += net_rdclass;
-	case_sum += net_rdclass;
+	sum += cksum_diff(add, net_rdclass);
+	case_sum += cksum_diff(add, net_rdclass);
 
 	net_rdtype = htons(RBTDB_RDATATYPE_BASE(header->type));
-	sum += net_rdtype;
-	case_sum += net_rdtype;
+	sum += cksum_diff(add, net_rdtype);
+	case_sum += cksum_diff(add, net_rdtype);
 
 	dns_rdataslab_cksum((unsigned char *)header, sizeof(*header), rdclass,
 			    RBTDB_RDATATYPE_BASE(header->type),
 			    &cksum, &case_cksum);
-	sum += cksum;
-	case_sum += case_cksum;
-
-	/*
-	 * In case we are deleting the RRset, convert the 32-bit sum for the
-	 * deleted RRset to the corresponding 16-bit negative sum.
-	 */
-	if (!add) {
-		sum = (sum >> 16) + (sum + 0xffff);
-		sum += sum >> 16;
-		sum = ~sum & 0xffff;
-		case_sum = (case_sum >> 16) + (case_sum + 0xffff);
-		case_sum += case_sum >> 16;
-		case_sum = ~case_sum & 0xffff;
-	}
+	sum += cksum_diff(add, cksum);
+	case_sum += cksum_diff(add, case_cksum);
 
 	/* Reset the final values. */
 	sum += rbtversion->cksum;
