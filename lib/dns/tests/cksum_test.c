@@ -480,6 +480,7 @@ ATF_TC_BODY(db_cksum, tc) {
 	dns_db_t *db = NULL;
 	dns_cksum_t cksum, case_cksum;
 	const char *rdatas[] = {"192.0.2.2"};
+	const char *ns_rdatas[] = {"ns1."};
 	dns_dbnode_t *node;
 	dns_rdataset_t *rds;
 	dns_dbversion_t *version;
@@ -509,6 +510,7 @@ ATF_TC_BODY(db_cksum, tc) {
 	ATF_REQUIRE_EQ(htons(0x5001), cksum);
 	ATF_REQUIRE_EQ(htons(0x1ad6), case_cksum);
 
+	/* Add a new RR(set).  Checksums should be updated accordingly. */
 	version = NULL;
 	ATF_REQUIRE_EQ(ISC_R_SUCCESS, dns_db_newversion(db, &version));
 	node = NULL;
@@ -525,6 +527,21 @@ ATF_TC_BODY(db_cksum, tc) {
 		       dns_db_cksum(db, NULL, &cksum, &case_cksum));
 	ATF_REQUIRE_EQ(htons(0x236c), cksum);
 	ATF_REQUIRE_EQ(htons(0xee40), case_cksum);
+
+	ATF_REQUIRE_EQ(ISC_R_SUCCESS, dns_db_newversion(db, &version));
+	node = NULL;
+	ATF_REQUIRE_EQ(ISC_R_SUCCESS, dns_db_getoriginnode(db, &node));
+	rds = rdataset_fromtext(dns_rdataclass_in, dns_rdatatype_ns, 3600,
+				ns_rdatas, 1);
+	ATF_REQUIRE_EQ(ISC_R_SUCCESS,
+		       dns_db_subtractrdataset(db, node, version, rds, 0,
+					       NULL));
+	dns_db_detachnode(db, &node);
+	dns_db_closeversion(db, &version, ISC_TRUE);
+	ATF_REQUIRE_EQ(ISC_R_SUCCESS,
+		       dns_db_cksum(db, NULL, &cksum, &case_cksum));
+	ATF_REQUIRE_EQ(htons(0x2257), cksum);
+	ATF_REQUIRE_EQ(htons(0x97c1), case_cksum);
 
 	dns_db_detach(&db);
 	dns_test_end();

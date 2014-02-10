@@ -707,13 +707,20 @@ update_cksum(rbtdb_version_t *rbtversion, dns_ttl_t old_ttl, dns_ttl_t new_ttl,
 {
 	isc_uint32_t sum = rbtversion->cksum;
 	isc_uint32_t case_sum = rbtversion->case_cksum;
-	isc_uint32_t net_oldttl = ~htonl(old_ttl); /* will be 'subtracted' */
-	isc_uint32_t net_newttl = htonl(new_ttl);
 
-	sum += (net_oldttl >> 16) + (net_oldttl & 0xffff);
-	case_sum += (net_oldttl >> 16) + (net_oldttl & 0xffff);
-	sum += (net_newttl >> 16) + (net_newttl & 0xffff);
-	case_sum += (net_newttl >> 16) + (net_newttl & 0xffff);
+	/*
+	 * If the TTL is changed, "subtract" the corresponding old sum and add
+	 * new one.
+	 */
+	if (old_ttl != new_ttl) {
+		isc_uint32_t net_oldttl = ~htonl(old_ttl);
+		isc_uint32_t net_newttl = htonl(new_ttl);
+
+		sum += (net_oldttl >> 16) + (net_oldttl & 0xffff);
+		case_sum += (net_oldttl >> 16) + (net_oldttl & 0xffff);
+		sum += (net_newttl >> 16) + (net_newttl & 0xffff);
+		case_sum += (net_newttl >> 16) + (net_newttl & 0xffff);
+	}
 
 	sum += cksum;
 	case_sum += case_cksum;
@@ -6810,6 +6817,7 @@ subtractrdataset(dns_db_t *db, dns_dbnode_t *node, dns_dbversion_t *version,
 		header = header->down;
 	if (header != NULL && EXISTS(header)) {
 		unsigned int flags = 0;
+		dns_cksum_t cksum, case_cksum;
 		subresult = NULL;
 		result = ISC_R_SUCCESS;
 		if ((options & DNS_DBSUB_EXACT) != 0) {
@@ -6818,14 +6826,14 @@ subtractrdataset(dns_db_t *db, dns_dbnode_t *node, dns_dbversion_t *version,
 				result = DNS_R_NOTEXACT;
 		}
 		if (result == ISC_R_SUCCESS)
-			result = dns_rdataslab_subtract(
+			result = dns_rdataslab_subtract2(
 					(unsigned char *)header,
 					(unsigned char *)newheader,
 					(unsigned int)(sizeof(*newheader)),
 					rbtdb->common.mctx,
 					rbtdb->common.rdclass,
 					(dns_rdatatype_t)header->type,
-					flags, &subresult);
+					flags, &subresult, &cksum, &case_cksum);
 		if (result == ISC_R_SUCCESS) {
 			free_rdataset(rbtdb, rbtdb->common.mctx, newheader);
 			newheader = (rdatasetheader_t *)subresult;
@@ -6843,6 +6851,9 @@ subtractrdataset(dns_db_t *db, dns_dbnode_t *node, dns_dbversion_t *version,
 			 */
 			newheader->additional_auth = NULL;
 			newheader->additional_glue = NULL;
+
+			/* adjust checksums by 'sbtracting' */
+			update_cksum(rbtversion, 0, 0, ~cksum, ~case_cksum);
 		} else if (result == DNS_R_NXRRSET) {
 			/*
 			 * This subtraction would remove all of the rdata;
